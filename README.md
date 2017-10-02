@@ -14,8 +14,8 @@
   </tr>
 </table>
 
-<ul>
+<ol>
 <li><a href="http://www.google.com" target="_blank"> Good </a></li>
 <li>Bad</li>
 <li>Ugly</li>
-</ul>
+</ol>
