@@ -6,11 +6,11 @@
 <h2>Dependencies</h2>
 <ul>
 <li><a href="http://www.htslib.org/" target="_blank"> Samtools </a></li>
-<li><a href="" target="_blank"> Perl </a></li>
+<li><a href="https://www.perl.org/" target="_blank"> Perl </a></li>
 </ul>
 
 <h2>Usage</h2>
-<p>SMARTcleaner <sub-command> [options]</p>
+<p>SMARTcleaner &lt sub-command &gt [options]</p>
 
 <table>
   <tr>
