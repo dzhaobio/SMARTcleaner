@@ -8,4 +8,8 @@ This is a test.
     <th>Name</th>
     <th>Address</th>
   </tr>
+  <tr>
+    <td>Albert Einstein</td>
+    <td>1300 Morris Park Ave</td>
+  </tr>
 </table>
