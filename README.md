@@ -1,7 +1,7 @@
 <h1>TEST</h1>
 
 <h1>Introduction</h1>
-<p>This is a <mark>test</mark>.</p>
+<p>This is a <span>test</span>.</p>
 
 <table>
   <tr>
