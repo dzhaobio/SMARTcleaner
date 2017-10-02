@@ -15,7 +15,7 @@
 </table>
 
 <ul>
-<li>Good</li>
+<li><a href="http://www.google.com"> Good </a></li>
 <li>Bad</li>
 <li>Ugly</li>
 </ul>
