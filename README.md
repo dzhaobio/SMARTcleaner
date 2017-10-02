@@ -1,7 +1,7 @@
 <h1>TEST</h1>
 
-<h1 color="red">Introduction</h1>
-This is a test.
+<h1>Introduction</h1>
+<p>This is a <mark>test</mark>.</p>
 
 <table>
   <tr>
