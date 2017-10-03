@@ -11,6 +11,7 @@
 <li><a href="#frag">Estimate falsely primed fragment length</a></li>
 </ul>
 <li><a href="#Benchmarks">Benchmarks</a></li>
+<li><a href="#Reference">Reference</a></li>
 </ul>
 
 <h2><a name="Introduction">Introduction</a></h2>
@@ -91,3 +92,5 @@
 <p>If the figure was not generated automiatically, users can generate it by running the R script. There are long lines in the R script. Avoid opening and running the script file in RStudio, or the long lines will be truncated and result in errors. Instead, run "source("script.R")" in R command console, or run "Rscript script.R" on command line console.</p>
 
 <h2><a name="Benchmarks">Benchmarks</a></h2>
+
+<h2><a name="Reference">Reference</a></h2>
