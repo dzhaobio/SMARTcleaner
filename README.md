@@ -71,6 +71,8 @@
   <p>-r &nbsp&nbsp STR &nbsp&nbsp method to resample reads near polyA or polyT regions ("opposite", "max") [opposite]</p>
 <p><b>Output</b>:</p>
 <p>Two alignment files: one for clean signal, one for noise</p>
+<p><b>Attention</b>:</p>
+<p>For SE mode, the program will read the whole genome into memory for fast query. There minial memory will vary depending on the genome size.</p>
 
 <h3><a name="poly">Identify genomic poly(dT/dA) regions</a></h3>
 <p><b>Usange</b>: SMARTcleaner identifyGenomicPolyN &ltgenome&gt [N]</p>
