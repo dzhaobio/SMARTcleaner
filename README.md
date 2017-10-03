@@ -34,7 +34,7 @@
   </tr>
 </table>
 
-<h4>Clean PE alignment files</h4>
+<h3>Clean PE alignment files</h3>
 <p>Usange: SMARTcleaner cleanPEbam [options] &ltgenome&gt &ltpe.bam&gt</p>
 <p>&ltgenome&gt: genome file in fasta format</p>
 <p>&ltpe.bam&gt: alignment file for PE reads</p>
@@ -43,7 +43,7 @@
   <p>-g &nbsp&nbsp NUM &nbsp&nbsp the gap size in bp between read2 and polyA/T [0]</p>
 </p>
 
-<h4>Clean SE alignment files</h4>
+<h3>Clean SE alignment files</h3>
 <p>Usange: SMARTcleaner cleanSEbam [options] &ltbed&gt &ltse.bam&gt</p>
 <p>&ltbed&gt: genomic poly(dT/dA) regions in bed format[more details]</p>
 <p>&ltse.bam&gt: alignment file for SE reads</p>
@@ -59,7 +59,7 @@
 <p>[N]: the number of consecutive bases in <fasta>, default 12</p>
 <p>Recomendation: run this analysis separately on each chromosome, and combine the results later<p>
 
-<h2>Estimate falsely primed fragment length</h2>
+<h3>Estimate falsely primed fragment length</h3>
 <p>Usange: SMARTcleaner estimateFragLength [options] &ltbed&gt &ltbam&gt</p>
 <p>&ltbed&gt: genomic poly(dT/dA) regions in bed format[more details]</p>
 <p>&ltbam&gt: alignment file for PE/SE reads</p>
