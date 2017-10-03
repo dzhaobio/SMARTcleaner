@@ -36,7 +36,11 @@
 </table>
 
 <h2>Clean PE alignment files</h2>
-
+<p>SMARTcleaner cleanPEbam [options] &lt genome &gt &lt pe.bam &gt</p>
+<p>Options:
+    -o DIR  output results to DIR [./]
+    -g NUM  the gap size in bp between read2 and polyA/T [0]
+</p>
 <h2>Clean SE alignment files</h2>
 
 <h2>Identify genomic poly(dT/dA) regions</h2>
