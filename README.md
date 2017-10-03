@@ -22,7 +22,7 @@
 </ul>
 
 <h2><a name="Usage">Usage</a></h2>
-<p>Usange: SMARTcleaner &ltsub-command&gt [options]</p>
+<p><b>Usange</b>: SMARTcleaner &ltsub-command&gt [options]</p>
 <table>
   <tr>
     <th>Sub-command</th>
