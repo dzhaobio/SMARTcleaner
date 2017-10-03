@@ -10,8 +10,7 @@
 </ul>
 
 <h2>Usage</h2>
-<p>Usange: SMARTcleaner &lt sub-command &gt [options]</p>
-
+<p>Usange: SMARTcleaner &ltsub-command&gt [options]</p>
 <table>
   <tr>
     <th>Sub-command</th>
@@ -36,15 +35,36 @@
 </table>
 
 <h2>Clean PE alignment files</h2>
-<p>Usange: SMARTcleaner cleanPEbam [options] &ltgenome&gt &lt pe.bam &gt</p>
+<p>Usange: SMARTcleaner cleanPEbam [options] &ltgenome&gt &ltpe.bam&gt</p>
+<p>&ltgenome&gt: genome file in fasta format</p>
+<p>&ltpe.bam&gt: alignment file for PE reads</p>
 <p>Options:
   <p>-o &nbsp&nbsp DIR &nbsp&nbsp output results to DIR [./]</p>
   <p>-g &nbsp&nbsp NUM &nbsp&nbsp the gap size in bp between read2 and polyA/T [0]</p>
 </p>
+
 <h2>Clean SE alignment files</h2>
+<p>Usange: SMARTcleaner cleanSEbam [options] &ltbed&gt &ltse.bam&gt</p>
+<p>&ltbed&gt: genomic poly(dT/dA) regions in bed format[more details]</p>
+<p>&ltse.bam&gt: alignment file for SE reads</p>
+<p>Options:
+  <p>-o &nbsp&nbsp DIR &nbsp&nbsp output results to DIR [./]</p>
+  <p>-l &nbsp&nbsp NUM &nbsp&nbsp falsely primed fragment length, estimated from data by default [null]</p>
+  <p>-r &nbsp&nbsp STR &nbsp&nbsp method to resample reads near polyA or polyT regions ("opposite", "max") [opposite]</p>
+</p>
 
 <h2>Identify genomic poly(dT/dA) regions</h2>
+<p>Usange: SMARTcleaner identifyGenomicPolyN &ltgenome&gt [N]</p>
+<p>&ltgenome&gt: genome/chromosome file in fasta format</p>
+<p>[N]: the number of consecutive bases in <fasta>, default 12</p>
+<p>Recomendation: run this analysis separately on each chromosome, and combine the results later<p>
 
 <h2>Estimate falsely primed fragment length</h2>
+<p>Usange: SMARTcleaner estimateFragLength [options] &ltbed&gt &ltbam&gt</p>
+<p>&ltbed&gt: genomic poly(dT/dA) regions in bed format[more details]</p>
+<p>&ltbam&gt: alignment file for PE/SE reads</p>
+<p>Options:
+  <p>-o &nbsp&nbsp DIR &nbsp&nbsp output results to DIR [./]</p>
+</p>
 
 <h2>Benchmarks</h2>
