@@ -3,6 +3,12 @@
 <li><a href="#Introduction">Introduction</a></li>
 <li>Dependencies</li>
 <li>Usage</li>
+<ul>
+<li>Clean PE alignment files</li>
+<li>Clean SE alignment files</li>
+<li>Identify genomic poly(dT/dA) regions</li>
+<li>Estimate falsely primed fragment length</li>
+<ul>
 <li>Benchmarks</li>
 </ul>
 
