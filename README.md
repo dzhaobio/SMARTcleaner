@@ -21,7 +21,7 @@
 <li><a href="https://www.perl.org/" target="_blank"> Perl </a></li>
 </ul>
 
-<h2><a name="#Usage">Usage</a></h2>
+<h2><a name="Usage">Usage</a></h2>
 <p>Usange: SMARTcleaner &ltsub-command&gt [options]</p>
 <table>
   <tr>
