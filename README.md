@@ -1,6 +1,12 @@
 <h1>SMARTcleaner</h1>
+<ul>
+<li><a href="#Introduction">Introduction</a></li>
+<li>Dependencies</li>
+<li>Usage</li>
+<li>Benchmarks</li>
+</ul>
 
-<h2>Introduction</h2>
+<h2><a name="Introduction">Introduction</a></h2>
 <p>SMARTcleaner is designed to specifically clean the falsely amplified noise from DNA SMART ChIP-seq libraries. There are two modes of this software, PE mode and SE mode, depending on the sequencing method used. In PE mode, it accepts genome fasta file and bam files as input, and output cleaned bam files and noise bam files. In SE mode, it accepts bed format of genomic poly(dT/dA) regions and bam files, and output cleaned bam files and noise bam files. SMARTcleaner also provides helper functions to prepare the files required for the cleaning process.</p>
 
 <h2>Dependencies</h2>
