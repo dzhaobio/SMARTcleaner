@@ -10,7 +10,7 @@
 </ul>
 
 <h2>Usage</h2>
-<p>SMARTcleaner &lt sub-command &gt [options]</p>
+<p>Usange: SMARTcleaner &lt sub-command &gt [options]</p>
 
 <table>
   <tr>
@@ -36,7 +36,7 @@
 </table>
 
 <h2>Clean PE alignment files</h2>
-<p>SMARTcleaner cleanPEbam [options] &lt genome &gt &lt pe.bam &gt</p>
+<p>Usange: SMARTcleaner cleanPEbam [options] &ltgenome&gt &lt pe.bam &gt</p>
 <p>Options:
   <p>-o &nbsp&nbsp DIR &nbsp&nbsp output results to DIR [./]</p>
   <p>-g &nbsp&nbsp NUM &nbsp&nbsp the gap size in bp between read2 and polyA/T [0]</p>
