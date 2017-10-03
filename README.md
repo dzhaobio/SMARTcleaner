@@ -58,7 +58,7 @@
 
 <h3><a name="SE">Clean SE alignment files</a></h3>
 <p><b>Usange</b>: SMARTcleaner cleanSEbam [options] &ltbed&gt &ltse.bam&gt</p>
-<p>&ltbed&gt: genomic poly(dT/dA) regions in bed format[more details]</p>
+<p>&ltbed&gt: genomic poly(dT/dA) regions in bed format</p>
 <p>&ltse.bam&gt: alignment file for SE reads</p>
 <p><b>Options</b>:</p>
   <p>-o &nbsp&nbsp DIR &nbsp&nbsp output results to DIR [./]</p>
