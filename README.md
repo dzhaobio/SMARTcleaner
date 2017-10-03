@@ -2,6 +2,7 @@
 <ul>
 <li><a href="#Introduction">Introduction</a></li>
 <li><a href="#Dependencies">Dependencies</a></li>
+<li><a href="#Installation">Installation</a></li>
 <li><a href="#Usage">Usage</a></li>
 <ul>
 <li><a href="#PE">Clean PE alignment files</a></li>
@@ -18,8 +19,11 @@
 <h2><a name="Dependencies">Dependencies<a></h2>
 <ul>
 <li><a href="http://www.htslib.org/" target="_blank"> Samtools </a></li>
-<li><a href="https://www.perl.org/" target="_blank"> Perl </a></li>
+<li><a href="https://www.perl.org/" target="_blank"> Perl v5.10 (or higher) </a></li>
 </ul>
+
+<h2><a name="Installation">Installation</a></h2>
+<p>SMARTcleaner is easy to install and use. First, make sure samtools is availabe in your current working environment. If not, edit the evionronment variable, eg. $PATH in Linux system, to include samtools. Next, download SMARTcleaner and put it under the directory "~/bin". Then, run "chmod 755 ~/bin/SMARTcleaner". Now SMARTcleaner is be ready for use.</p>
 
 <h2><a name="Usage">Usage</a></h2>
 <p><b>Usange</b>: SMARTcleaner &ltsub-command&gt [options]</p>
