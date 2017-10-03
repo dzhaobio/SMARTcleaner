@@ -50,33 +50,40 @@
 <p>Usange: SMARTcleaner cleanPEbam [options] &ltgenome&gt &ltpe.bam&gt</p>
 <p>&ltgenome&gt: genome file in fasta format</p>
 <p>&ltpe.bam&gt: alignment file for PE reads</p>
-<p>Options:
+<p>Options:</p>
   <p>-o &nbsp&nbsp DIR &nbsp&nbsp output results to DIR [./]</p>
   <p>-g &nbsp&nbsp NUM &nbsp&nbsp the gap size in bp between read2 and polyA/T [0]</p>
-</p>
+<p>Output:</p>
+<p>Two alignment files: one for clean signal, one for noise</p>
 
 <h3><a name="SE">Clean SE alignment files</a></h3>
 <p>Usange: SMARTcleaner cleanSEbam [options] &ltbed&gt &ltse.bam&gt</p>
 <p>&ltbed&gt: genomic poly(dT/dA) regions in bed format[more details]</p>
 <p>&ltse.bam&gt: alignment file for SE reads</p>
-<p>Options:
+<p>Options:</p>
   <p>-o &nbsp&nbsp DIR &nbsp&nbsp output results to DIR [./]</p>
   <p>-l &nbsp&nbsp NUM &nbsp&nbsp falsely primed fragment length, estimated from data by default [null]</p>
   <p>-r &nbsp&nbsp STR &nbsp&nbsp method to resample reads near polyA or polyT regions ("opposite", "max") [opposite]</p>
-</p>
+<p>Output:</p>
+<p>Two alignment files: one for clean signal, one for noise</p>
 
 <h3><a name="poly">Identify genomic poly(dT/dA) regions</a></h3>
 <p>Usange: SMARTcleaner identifyGenomicPolyN &ltgenome&gt [N]</p>
 <p>&ltgenome&gt: genome/chromosome file in fasta format</p>
 <p>[N]: the number of consecutive bases in <fasta>, default 12</p>
 <p>Recomendation: run this analysis separately on each chromosome, and combine the results later<p>
+<p>Output:</p>
+<p>1-based bed file. There are 6 columns: chr, start, end, name (indicating "PolyT" or "PolyA" region), region size, strand. The first four columns are essential.</p>
 
 <h3><a name="frag">Estimate falsely primed fragment length</a></h3>
 <p>Usange: SMARTcleaner estimateFragLength [options] &ltbed&gt &ltbam&gt</p>
 <p>&ltbed&gt: genomic poly(dT/dA) regions in bed format[more details]</p>
 <p>&ltbam&gt: alignment file for PE/SE reads</p>
-<p>Options:
+<p>Options:</p>
   <p>-o &nbsp&nbsp DIR &nbsp&nbsp output results to DIR [./]</p>
-</p>
+<p>Output:</p>
+<p>One R script and one figure generated from the R script for fragment length distribution near poly(dT/dA) regions.</p>
+<p>Attention:</p>
+<p>If the figure was not generated automiatically, users can generate it by running the R script. There are long lines in the R script. Avoid opening and running the script file in RStudio, or the long lines will be truncated and result in errors. Instead, run "source("script.R")" in R command console, or run "Rscript script.R" on command line console.</p>
 
 <h2><a name="Benchmarks">Benchmarks</a></h2>
