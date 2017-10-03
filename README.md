@@ -23,7 +23,7 @@
 </ul>
 
 <h2><a name="Installation">Installation</a></h2>
-<p>SMARTcleaner is easy to install and use. First, make sure samtools is availabe in your current working environment. If not, edit the evionronment variable, eg. $PATH in Linux system, to include samtools. Next, download SMARTcleaner and put it under the directory "~/bin". Then, run "chmod 755 ~/bin/SMARTcleaner". Now SMARTcleaner is be ready for use.</p>
+<p>SMARTcleaner is easy to install and use. First, make sure samtools is availabe in your current working environment. If not, edit the evionronment variable, eg. $PATH in Linux system, to include samtools. Next, download SMARTcleaner and put it under the directory "~/bin". Then, run "chmod 755 ~/bin/SMARTcleaner". Now SMARTcleaner should be ready for use.</p>
 
 <h2><a name="Usage">Usage</a></h2>
 <p><b>Usange</b>: SMARTcleaner &ltsub-command&gt [options]</p>
