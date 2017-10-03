@@ -34,7 +34,7 @@
   </tr>
 </table>
 
-<h2>Clean PE alignment files</h2>
+<h4>Clean PE alignment files</h4>
 <p>Usange: SMARTcleaner cleanPEbam [options] &ltgenome&gt &ltpe.bam&gt</p>
 <p>&ltgenome&gt: genome file in fasta format</p>
 <p>&ltpe.bam&gt: alignment file for PE reads</p>
@@ -43,7 +43,7 @@
   <p>-g &nbsp&nbsp NUM &nbsp&nbsp the gap size in bp between read2 and polyA/T [0]</p>
 </p>
 
-<h2>Clean SE alignment files</h2>
+<h4>Clean SE alignment files</h4>
 <p>Usange: SMARTcleaner cleanSEbam [options] &ltbed&gt &ltse.bam&gt</p>
 <p>&ltbed&gt: genomic poly(dT/dA) regions in bed format[more details]</p>
 <p>&ltse.bam&gt: alignment file for SE reads</p>
@@ -53,7 +53,7 @@
   <p>-r &nbsp&nbsp STR &nbsp&nbsp method to resample reads near polyA or polyT regions ("opposite", "max") [opposite]</p>
 </p>
 
-<h2>Identify genomic poly(dT/dA) regions</h2>
+<h3>Identify genomic poly(dT/dA) regions</h3>
 <p>Usange: SMARTcleaner identifyGenomicPolyN &ltgenome&gt [N]</p>
 <p>&ltgenome&gt: genome/chromosome file in fasta format</p>
 <p>[N]: the number of consecutive bases in <fasta>, default 12</p>
