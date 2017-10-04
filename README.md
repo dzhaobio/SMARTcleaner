@@ -8,6 +8,7 @@
 <li><a href="#PE">Clean PE alignment files</a></li>
 <li><a href="#SE">Clean SE alignment files</a></li>
 <li><a href="#poly">Identify genomic poly(dT/dA) regions</a></li>
+<li><a href="#stitch">Stitch short polyN regions into longer interrupted polyN regions</a></li>
 <li><a href="#frag">Estimate falsely primed fragment length</a></li>
 </ul>
 <li><a href="#Benchmarks">Benchmarks</a></li>
@@ -81,6 +82,14 @@
 <p><b>Recomendation</b>: run this analysis separately on each chromosome, and combine the results later<p>
 <p><b>Output</b>:</p>
 <p>1-based bed file. There are 6 columns: chr, start, end, name (indicating "PolyT" or "PolyA" region), region size, strand. The first four columns are essential.</p>
+
+<h3><a name="stitch">Stitch short polyN regions into longer interrupted polyN regions</a></h3>
+<p><b>Usange</b>: SMARTcleaner stitchShortPolyN &ltgenome&gt &ltclosestPolyN&gt</p>
+<p>&ltgenome&gt: genome/chromosome file in fasta format</p>
+<p>&ltclosestPolyN&gt: closest polyN regions and distance. </p>
+<p><b>Recomendation</b>: The closest polyN regions and distance could be generated using bedtools2. Refer to <a href="">wiki</a> for details.<p>
+<p><b>Output</b>:</p>
+<p>Two files: one containing the interrupted poly(dT/dA) regions, ready for cleaning in SE mode; the other containing the details of poly(dT/dA) regions that are stitiched together.</p>
 
 <h3><a name="frag">Estimate falsely primed fragment length</a></h3>
 <p><b>Usange</b>: SMARTcleaner estimateFragLength [options] &ltbed&gt &ltbam&gt</p>
