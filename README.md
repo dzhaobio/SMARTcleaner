@@ -47,6 +47,11 @@
     <td>generate genomic polyN region</td>
   </tr>
   <tr>
+    <td>stitchShortPolyN</td>
+    <td>stitch short polyN regions into longer interrupted polyN regions</td>
+  </tr>
+  <tr>
+  <tr>
     <td>estimateFragLength</td>
     <td>estimate falsely primed fragment length</td>
   </tr>
