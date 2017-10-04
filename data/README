@@ -1,0 +1,1 @@
+The files in this directory are for SMARTcleaner SE mode. These files describe the regions that potentially cause false amplification in libraries constructed using DNA SMART ChIP-seq kit. To generate such reagions for other genomes, please refer to the Wiki page for details.
