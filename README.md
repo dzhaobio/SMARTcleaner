@@ -20,7 +20,7 @@
 
 <h2><a name="Dependencies">Dependencies<a></h2>
 <ul>
-<li><a href="http://www.htslib.org/" target="_blank"> Samtools </a></li>
+<li><a href="http://www.htslib.org/" target="_blank"> Samtools v0.1.19 (or higher)</a></li>
 <li><a href="https://www.perl.org/" target="_blank"> Perl v5.10 (or higher) </a></li>
 </ul>
 
