@@ -65,6 +65,8 @@
   <p>-g &nbsp&nbsp NUM &nbsp&nbsp the gap size in bp between read2 and polyA/T [0]</p>
 <p><b>Output</b>:</p>
 <p>Two alignment files: one for clean signal, one for noise</p>
+<p><b>Attention</b>:</p>
+<p>For PE mode, the program will read the whole genome into memory for fast query. The minial memory will vary depending on the genome size.</p>
 
 <h3><a name="SE">Clean SE alignment files</a></h3>
 <p><b>Usange</b>: SMARTcleaner cleanSEbam [options] &ltbed&gt &ltse.bam&gt</p>
@@ -77,7 +79,7 @@
 <p><b>Output</b>:</p>
 <p>Two alignment files: one for clean signal, one for noise</p>
 <p><b>Attention</b>:</p>
-<p>For SE mode, the program will read the whole genome into memory for fast query. The minial memory will vary depending on the genome size.</p>
+<p>The genomic poly(dT/dA) regions for human, mouse and yeast are prebuilt and put in the "data" folder. For other genomes, please refer to wiki pages for how to prepare the required files.</p>
 
 <h3><a name="poly">Identify genomic poly(dT/dA) regions</a></h3>
 <p><b>Usange</b>: SMARTcleaner identifyGenomicPolyN &ltgenome&gt [N]</p>
