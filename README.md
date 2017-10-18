@@ -85,7 +85,6 @@
 <p><b>Usange</b>: SMARTcleaner identifyGenomicPolyN &ltgenome&gt [N]</p>
 <p>&ltgenome&gt: genome/chromosome file in fasta format</p>
 <p>[N]: the number of consecutive bases in <fasta>, default 12</p>
-<p><b>Recomendation</b>: run this analysis separately on each chromosome, and combine the results later<p>
 <p><b>Output</b>:</p>
 <p>1-based bed file. There are 6 columns: chr, start, end, name (indicating "PolyT" or "PolyA" region), region size, strand. The first four columns are essential.</p>
 
