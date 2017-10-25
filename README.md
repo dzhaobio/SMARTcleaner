@@ -84,7 +84,7 @@
 <h3><a name="poly">Identify genomic poly(dT/dA) regions</a></h3>
 <p><b>Usange</b>: SMARTcleaner identifyGenomicPolyN &ltgenome&gt [N]</p>
 <p>&ltgenome&gt: genome/chromosome file in fasta format</p>
-<p>[N]: the number of consecutive bases in <fasta>, default 12</p>
+<p>[N]: the number of consecutive bases in <fasta>, default 5</p>
 <p><b>Output</b>:</p>
 <p>1-based bed file. There are 6 columns: chr, start, end, name (indicating "PolyT" or "PolyA" region), region size, strand. The first four columns are essential.</p>
 
