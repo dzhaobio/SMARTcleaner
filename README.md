@@ -64,6 +64,8 @@
 <p><b>Options</b>:</p>
   <p>-o &nbsp&nbsp DIR &nbsp&nbsp output results to DIR [./]</p>
   <p>-g &nbsp&nbsp NUM &nbsp&nbsp the gap size in bp between read2 and polyA/T [0]</p>
+  <p>-l &nbsp&nbsp NUM &nbsp&nbsp the genomic sequence length for checking polyA/T sites [12]</p>
+  <p>-c &nbsp&nbsp NUM &nbsp&nbsp the cutoff number of A/T bases for defining polyA/T sites [10]</p>
 <p><b>Output</b>:</p>
 <p>Two alignment files: one for clean signal, one for noise</p>
 <p><b>Attention</b>:</p>
@@ -75,11 +77,11 @@
 <p>&ltse.bam&gt: alignment file for SE reads (sorted by coordinates)</p>
 <p><b>Options</b>:</p>
   <p>-o &nbsp&nbsp DIR &nbsp&nbsp output results to DIR [./]</p>
-  <p>-l &nbsp&nbsp NUM &nbsp&nbsp falsely primed fragment length, estimated from data by default [null]</p>
+  <p>-l &nbsp&nbsp NUM &nbsp&nbsp region size for resampling falsely primed fragments [null]</p>
 <p><b>Output</b>:</p>
 <p>Two alignment files: one for clean signal, one for noise</p>
 <p><b>Attention</b>:</p>
-<p>The genomic poly(T/A) regions for human, mouse and yeast are prebuilt and put in the "data" folder. For other genomes, please refer to wiki pages for how to prepare the required files.</p>
+<p>The genomic poly(T/A) regions for human, mouse and yeast are prebuilt and put in the "data" folder. For other genomes, please refer to <a href="https://github.com/dzhaobio/SMARTcleaner/wiki">wiki pages</a> for how to prepare the required files.</p>
 
 <h3><a name="poly">Identify genomic poly(T/A) regions</a></h3>
 <p><b>Usange</b>: SMARTcleaner identifyGenomicPolyN &ltgenome&gt [N]</p>
@@ -92,16 +94,16 @@
 <p><b>Usange</b>: SMARTcleaner stitchShortPolyN &ltgenome&gt &ltclosestPolyN&gt</p>
 <p>&ltgenome&gt: genome/chromosome file in fasta format</p>
 <p>&ltclosestPolyN&gt: closest polyN regions and distance. </p>
-<p><b>Recomendation</b>: The closest polyN regions and distance could be generated using bedtools2. Refer to <a href="https://github.com/dzhaobio/SMARTcleaner/wiki">wiki pages</a> for details.<p>
 <p><b>Output</b>:</p>
-<p>Two files: one containing the interrupted poly(T/A) regions, ready for cleaning in SE mode; the other containing the details of poly(T/A) regions that are stitiched together.</p>
+<p>Two files: one containing the interrupted poly(T/A) regions, ready for cleaning in SE mode; the other containing the details of poly(T/A) regions that are stitiched together. Refer to <a href="https://github.com/dzhaobio/SMARTcleaner/wiki">wiki pages</a> for details.</p>
 
 <h3><a name="frag">Estimate falsely primed fragment length</a></h3>
 <p><b>Usange</b>: SMARTcleaner estimateFragLength [options] &ltbed&gt &ltbam&gt</p>
-<p>&ltbed&gt: genomic poly(T/A) regions in bed format[more details]</p>
+<p>&ltbed&gt: genomic poly(T/A) regions in bed format</p>
 <p>&ltbam&gt: alignment file for PE/SE reads</p>
 <p><b>Options</b>:</p>
   <p>-o &nbsp&nbsp DIR &nbsp&nbsp output results to DIR [./]</p>
+  <p>-f &nbsp&nbsp NUM &nbsp&nbsp flanking region size (bp) around poly(dT/dA) for estimating fragment length [2000]</p>
 <p><b>Output</b>:</p>
 <p>One R script and one figure generated from the R script for fragment length distribution near poly(T/A) regions.</p>
 <p><b>Attention</b>:</p>
