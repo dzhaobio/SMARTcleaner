@@ -1,0 +1,1364 @@
+#!/usr/bin/env perl 
+use strict;
+use warnings;
+use feature qw(say);
+use File::Basename;
+use Getopt::Long;
+use List::Util qw(shuffle);
+use File::Path qw(make_path);
+
+&main();
+exit;
+
+## SUBROUTINES
+## main
+sub main {
+	die &usage if (@ARGV < 1);
+	my $command = shift(@ARGV);
+	my %func = (
+		cleanPEbam				=> \&SMARTcleanPEPileup,
+		cleanSEbam				=> \&SMARTcleanSE,
+		identifyGenomicPolyN	=> \&identifyGenomicPolyN,
+		stitchShortPolyN		=> \&stitchShortPolyN,
+		estimateFragLength		=> \&SMARTestimatFragLen
+	);
+	if ( defined( $func{$command} ) ) {
+		&{ $func{ $command } };
+	} else {
+		warn("Unknown command \"$command\"!\n");
+		&usage;
+		exit;	
+	}
+}
+
+## usage
+sub usage {
+	die qq(
+Program: SMARTcleaner makes SMART CHIP-seq signals cleaner
+Version: 1.0
+
+Usage:   SMARTcleaner <command> [options]
+
+Commands:
+    cleanPEbam            clean PE bam files
+    cleanSEbam            clean SE bam files
+    identifyGenomicPolyN  generate genomic polyN region
+    stitchShortPolyN      stitch short polyN regions into longer interrupted polyN regions
+    estimateFragLength    estimate falsely primed fragment length
+
+);
+}
+
+## check dependencies
+sub SMARTcheckDependencies {
+	if (  `which samtools` eq "" ) { # samtools compulsory
+		die "samtools not found\n";
+	}
+}
+
+## SMARTjudge
+sub SMARTjudge {
+        my ($bam) = @_;
+        open(F, "samtools view $bam |");
+        my $read = 0;
+        my $flag; # $flag->{PE|SE} ++
+        while (my $line = <F>) {
+    		chomp $line;
+			my @F = split(/\t/, $line);
+    	    my $r2chr = $F[ 6 ];
+    	    if ( $r2chr eq '*' ) {
+    	    	$flag->{"SE"} ++;
+    	    } else {
+    	    	$flag->{"PE"} ++;
+    	    }
+       		# check top 1000 reads
+       		last if ($read ++) > 1000;
+        }
+        close F;
+        my $conclusion = ( exists $flag->{"PE"} ) ? ( "PE" ) : ( "SE" );
+        say STDERR join(":", $conclusion, $bam);
+        return $conclusion;
+}
+
+## SMARTcheckBai
+sub SMARTcheckBai {
+	my (@bams) = @_;
+	# check and generate bam index
+	for my $bam (@bams) {
+		my $bai1 = join(".", $bam, "bai");
+		my $bai2 = $bai1;
+		$bai2 =~ s/bam.bai/bai/i;
+		unless ( -e $bai1 or -e $bai2 ) {
+			say STDERR "Samtools indexing $bam";
+			my $cmd = "samtools index $bam";
+			if ( system($cmd) == 0 ) {
+				say STDERR "Samtools indexed $bam";
+			} else {
+				say STDERR "Samtools failed to index $bam:\n$!\n\n$?";
+			}
+		}
+	}
+}
+
+## getBamChrNames
+sub getBamChrNames {
+	my ($bam) = @_;
+	my $bamChrNames;
+	open(BAM, "samtools view -H $bam |");
+	while ( <BAM> ) {
+		chomp;
+		if (/SN:(.+?)\s+/) {
+			$bamChrNames -> { $1 } ++;
+		}
+	}
+	close BAM;
+	return $bamChrNames;
+}
+
+## SMARTcleanPEPileup - PE
+sub SMARTcleanPEPileup {
+my $usage = <<"USAGE";
+
+Usage: SMARTcleaner cleanPEbam [options] <genome> <pe.bam>
+
+Options:
+    -o DIR  output results to DIR [./]
+    -g NUM  the gap size (bp) between read2 and polyA/T [0]
+    -l NUM  the genomic sequence length for checking polyA/T sites [12]
+    -c NUM  the cutoff number of A/T bases for defining polyA/T sites [10]
+
+USAGE
+
+	my @cmd = ("cleanPEbam", @ARGV);
+	my $outdir;
+	my $gapLengthBetweenR2andPolyN = 0;
+	my $polyATlengthPE = 12;
+	my $polyATcutoffPE = 10;
+	GetOptions(
+		"o|outdir=s" => \$outdir,
+		"g|gap=i" => \$gapLengthBetweenR2andPolyN,
+		"l|ATlength=i" => \$polyATlengthPE,
+		"c|ATlengthCutoff=i" => \$polyATcutoffPE
+	) or die $usage;
+	die $usage if @ARGV < 2;
+	my ($genome, $bam) = @ARGV;
+
+	# outdir
+	if ( defined $outdir) {
+		make_path("$outdir") unless -d $outdir;
+	} else {
+		$outdir = ".";
+	}
+
+	# check samtools
+	&SMARTcheckDependencies();
+
+	# check bam index
+	&SMARTcheckBai($bam); # check and fix to avoid interuption of program
+
+	# clean PE bam
+	# check reads one by one
+	say STDERR join(" ", $0, @cmd);
+	say STDERR "Cleaning PE $bam";
+
+	## read $genome
+	my $fa; # $fa->{ $chr } = $seq
+	$/=">";
+	open(FA, "<", $genome);
+	while ( <FA> ) {
+		chomp;
+		next if /^#/;
+		next if /^\s*$/;
+		my ($seqid, @seq) = split(/\n/);
+		my ($chr) = split(/\s+/, $seqid);
+		chomp @seq;
+		my $seq = join("",@seq);
+		say STDERR join("\t", $chr, length($seq));
+		$fa->{ $chr } = $seq;
+	}
+	close FA;
+	$/="\n";
+
+	## check Chr names
+	my $bamChrNames = &getBamChrNames($bam);
+	my $matchChrFlag = 0;
+	for my $chr (keys %$bamChrNames) {
+		if (exists $fa->{$chr}) {
+			$matchChrFlag = 1;
+			last;
+		}
+	}
+	if ($matchChrFlag == 0) {
+		say STDERR join(" ", "Chrs in $genome:", sort keys %$fa);
+		say STDERR join(" ", "Chrs in $bam:", sort keys %$bamChrNames);
+		die "The chromosome names do not match!";
+	}
+
+	## result files
+	my $resNoiseBamFile = join("/", $outdir, join(".", basename($bam), "noise.bam") );
+	my $resCleanBamFile = join("/", $outdir, join(".", basename($bam), "clean.bam") );
+
+	## keep track of fragment ends (only for those at polyAT sites)
+	my ( $polyTR1, $polyTR2, $polyAR1, $polyAR2 );
+	my $iAll = 0;
+
+	## process bam (clean.bam; noise.bam)
+	open(BAM, " samtools view -h -F 4 $bam | "); # mapped reads
+ 	open(CLEANBAM, " | samtools view -b -o $resCleanBamFile - ") or die "Cannot write to $resCleanBamFile: $!";
+ 	open(NOISEBAM, " | samtools view -b -o $resNoiseBamFile - ") or die "Cannot write to $resNoiseBamFile: $!";
+	while ( <BAM> ) {
+		chomp;
+		if ( /^@/ ) {	## header
+			say CLEANBAM $_;
+			say NOISEBAM $_;
+		} else {		## reads
+			$iAll ++;
+			my @F = split(/\t/, $_);
+			my $flag = $F[ 1 ];
+			my $chr  = $F[ 2 ];
+			my $pos  = $F[ 3 ];
+			my $mpos = $F[ 7 ];
+			my $tlen = $F[ 8 ];
+			if ( ( $flag & 0x1 ) && ( $flag & 0x2 ) && ( $flag & 0x20 ) && ( $flag & 0x40 ) ) { # 0x63	99	PAIRED,PROPER_PAIR,MREVERSE,READ1
+				my $fragRightEndExt = $pos + $tlen + $gapLengthBetweenR2andPolyN; # the start of the polyT region
+				my $checkPolyT = &checkPolyAT($fa, $chr, $fragRightEndExt, "T", $polyATlengthPE, $polyATcutoffPE);
+				$fragRightEndExt = join(":", $chr, $fragRightEndExt);
+				if ( $checkPolyT eq "Y" ) {
+					$polyTR1->{ $fragRightEndExt } ++;
+					if ( $polyTR1->{ $fragRightEndExt } > 1 ) {
+						say NOISEBAM $_;
+					} else {
+						say CLEANBAM $_;
+					}
+				} else {
+					say CLEANBAM $_;
+				}
+			} elsif ( ( $flag & 0x1 ) && ( $flag & 0x2 ) && ( $flag & 0x10 ) && ( $flag & 0x80 ) ) { # 0x93	147	PAIRED,PROPER_PAIR,REVERSE,READ2
+				my $fragRightEndExt = $mpos - $tlen + $gapLengthBetweenR2andPolyN; # the start of the polyT region; $tlen < 0
+				my $checkPolyT = &checkPolyAT($fa, $chr, $fragRightEndExt, "T", $polyATlengthPE, $polyATcutoffPE);
+				$fragRightEndExt = join(":", $chr, $fragRightEndExt);
+				if ( $checkPolyT eq "Y" ) {
+					$polyTR2->{ $fragRightEndExt } ++;
+					if ( $polyTR2->{ $fragRightEndExt } > 1 ) {
+						say NOISEBAM $_;
+					} else {
+						say CLEANBAM $_;
+					}
+				} else {
+					say CLEANBAM $_;
+				}
+			} elsif (  ( $flag & 0x1 ) && ( $flag & 0x2 ) && ( $flag & 0x10 ) && ( $flag & 0x40 ) ) { # 0x53	83	PAIRED,PROPER_PAIR,REVERSE,READ1
+				my $fragLeftEndExt = $mpos - $gapLengthBetweenR2andPolyN - 1; # the end of polyA region
+				my $checkPolyA = &checkPolyAT($fa, $chr, $fragLeftEndExt, "A", $polyATlengthPE, $polyATcutoffPE);
+				$fragLeftEndExt = join(":", $chr, $fragLeftEndExt);
+				if ( $checkPolyA eq "Y" ) {				
+					$polyAR1->{ $fragLeftEndExt } ++;
+					if ( $polyAR1->{ $fragLeftEndExt } > 1 ) {
+						say NOISEBAM $_;
+					} else {
+						say CLEANBAM $_;
+					}
+				} else {
+					say CLEANBAM $_;
+				}
+			} elsif (  ( $flag & 0x1 ) && ( $flag & 0x2 ) && ( $flag & 0x20 ) && ( $flag & 0x80 ) ) { # 0xa3	163	PAIRED,PROPER_PAIR,MREVERSE,READ2
+				my $fragLeftEndExt = $pos - $gapLengthBetweenR2andPolyN - 1; # the end of polyA region
+				my $checkPolyA = &checkPolyAT($fa, $chr, $fragLeftEndExt, "A", $polyATlengthPE, $polyATcutoffPE);
+				$fragLeftEndExt = join(":", $chr, $fragLeftEndExt);
+				if ( $checkPolyA eq "Y" ) {
+					$polyAR2->{ $fragLeftEndExt } ++;
+					if ( $polyAR2->{ $fragLeftEndExt } > 1 ) {
+						say NOISEBAM $_;
+					} else {
+						say CLEANBAM $_;
+					}
+				} else {
+					say CLEANBAM $_;
+				}
+			} else {
+				warn "Not properly mapped PE reads:$_";
+			}
+		}
+		# next line
+	}
+	close BAM;
+	close CLEANBAM;
+	close NOISEBAM;
+
+	## details
+	say STDERR join("\t", qw(ReadType FragmentEndPos DeletedReadsNum));
+	## %$polyTR1
+	my $polyTR1Regions = 0;
+	my $polyTR1Reads = 0;
+	for my $fragEnd (sort keys %$polyTR1) {
+		my $deletedReads = $polyTR1->{ $fragEnd } - 1;
+		if ( $deletedReads > 0 ) {
+			$polyTR1Regions ++;
+			$polyTR1Reads += $deletedReads;
+			say STDERR join("\t", "polyTR1", $fragEnd, $deletedReads);
+		}
+	}
+	## %$polyTR2
+	my $polyTR2Regions = 0;
+	my $polyTR2Reads = 0;
+	for my $fragEnd (sort keys %$polyTR2) {
+		my $deletedReads = $polyTR2->{ $fragEnd } - 1;
+		if ( $deletedReads > 0 ) {
+			$polyTR2Regions ++;
+			$polyTR2Reads += $deletedReads;
+			say STDERR join("\t", "polyTR2", $fragEnd, $deletedReads);
+		}
+	}
+	## %$polyAR1
+	my $polyAR1Regions = 0;
+	my $polyAR1Reads = 0;
+	for my $fragEnd (sort keys %$polyAR1) {
+		my $deletedReads = $polyAR1->{ $fragEnd } - 1;
+		if ( $deletedReads > 0 ) {
+			$polyAR1Regions ++;
+			$polyAR1Reads += $deletedReads;
+			say STDERR join("\t", "polyAR1", $fragEnd, $deletedReads);
+		}
+	}
+	## %$polyAR2
+	my $polyAR2Regions = 0;
+	my $polyAR2Reads = 0;
+	for my $fragEnd (sort keys %$polyAR2) {
+		my $deletedReads = $polyAR2->{ $fragEnd } - 1;
+		if ( $deletedReads > 0 ) {
+			$polyAR2Regions ++;
+			$polyAR2Reads += $deletedReads;
+			say STDERR join("\t", "polyAR2", $fragEnd, $deletedReads);
+		}
+	}
+	
+	## summary of four groups of reads
+	say STDERR join("\t", qw(ReadType RegionNumber TotalDeletedReads));
+	say STDERR join("\t", "polyTR1", $polyTR1Regions, $polyTR1Reads);
+	say STDERR join("\t", "polyTR2", $polyTR2Regions, $polyTR2Reads);
+	say STDERR join("\t", "polyAR1", $polyAR1Regions, $polyAR1Reads);
+	say STDERR join("\t", "polyAR2", $polyAR2Regions, $polyAR2Reads);
+
+	## 	summary of cleaning results
+	my $iDel = $polyTR1Reads + $polyTR2Reads + $polyAR1Reads + $polyAR2Reads;
+	## output statistics
+	say STDERR join("\t", qw(Group Removed All Rate));
+	say STDERR join("\t", "Number", $iDel, $iAll, $iDel/$iAll);
+	say STDERR "Cleaned $bam";	
+}
+
+## checkPolyAT (return Y/N) - PE
+sub checkPolyAT {
+	my ($fa, $chr, $fragEnd, $AT, $polyATlengthPE, $polyATcutoffPE) = @_;
+	my $conclusion = "N";
+	if ( $AT eq "T" ) {
+		my $seq = uc( substr( $fa->{ $chr }, $fragEnd - 1, $polyATlengthPE ) );
+		my $letter;
+		$letter->{ $_ } ++ for split("",$seq);
+		if ( exists $letter->{"T"} && $letter->{"T"} >= $polyATcutoffPE ) {
+			$conclusion = "Y";
+		}
+	} elsif ( $AT eq "A" ) {
+		my $seq = uc( substr( $fa->{ $chr }, $fragEnd - 1 - $polyATlengthPE, $polyATlengthPE ) );
+		my $letter;
+		$letter->{ $_ } ++ for split("",$seq);
+		if ( exists $letter->{"A"} && $letter->{"A"} >= $polyATcutoffPE ) {
+			$conclusion = "Y";
+		}
+	} else {
+		warn "Not checking A/T:$chr, $fragEnd, $AT";
+		$conclusion = "N";
+	}
+	return $conclusion;
+}
+
+## SMARTcleanSE - SE
+sub SMARTcleanSE {
+my $usage = <<"USAGE";
+
+Usage: SMARTcleaner cleanSEbam [options] <bed> <se.bam>
+
+Options:
+    -o DIR  output results to DIR [.]
+    -l NUM  region size for resampling falsely primed fragments [null]
+
+USAGE
+
+	my @cmd = ("cleanSEbam", @ARGV);
+
+	my $outdir;
+	my $fraglength; # check if it is defined (use it to extend polyAT region); could set this value or estimate from bed and bam
+	my $falseFragRegionsBedFile;
+	GetOptions(
+		"o|outdir=s" => \$outdir,
+		"l|fraglen=i" => \$fraglength,
+		"r|resample=s" => \$falseFragRegionsBedFile
+	) or die $usage;
+	die $usage if @ARGV < 2;
+	my ($bed, $bam) = @ARGV;  # check if defined $outdir, $fraglength
+	say STDERR "$0 @cmd";
+
+	# outdir
+	if ( defined $outdir) {
+		make_path("$outdir") unless -d $outdir;
+	} else {
+		$outdir = ".";
+	}
+
+	# check samtools
+	&SMARTcheckDependencies();
+
+	# get bed chr names
+	my $bedChrNames;
+	open(BED, "<", $bed) or die "Cannot open $bed: $!\n";
+	while (<BED>) {
+		chomp;
+		next if /^#/;
+		my ($chr) = split(/\t/, $_);
+		$bedChrNames -> {$chr} ++;
+	}
+	close BED;
+	# check chr names
+	my $bamChrNames = &getBamChrNames($bam);
+	my $matchChrFlag = 0;
+	for my $chr (keys %$bamChrNames) {
+		if (exists $bedChrNames->{$chr}) {
+			$matchChrFlag = 1;
+			last;
+		}
+	}
+	if ($matchChrFlag == 0) {
+		say STDERR join(" ", "Chrs in bed file ($bed):\n", sort keys %$bedChrNames);
+		say STDERR join(" ", "Chrs in bam file ($bam):\n", sort keys %$bamChrNames);
+		die "The chromosome names do not match between bed and bam files!\n";
+	}
+
+	# check bam index
+	&SMARTcheckBai($bam); # check and fix to avoid interuption of program
+	say STDERR "Prepare to clean $bam (SE)";
+
+	# check/prep required files for resampling
+	if (defined $falseFragRegionsBedFile) {
+		say STDERR "Resampling region file: $falseFragRegionsBedFile";
+	} elsif (defined $fraglength) {
+		say STDERR "Fragment length: $fraglength";
+		$falseFragRegionsBedFile = &genFalseFragRegionBed($bed,$bam,$outdir,$fraglength);
+		say STDERR "Resampling region file: $falseFragRegionsBedFile";
+	} else {
+		$fraglength = &SMARTestimatFragLenPrvt($bed, $bam, $outdir, 2000);
+		say STDERR "Fragment length: $fraglength";
+		$falseFragRegionsBedFile = &genFalseFragRegionBed($bed,$bam,$outdir,$fraglength);
+		say STDERR "Resampling region file: $falseFragRegionsBedFile";
+	}
+
+	# clean SE bam
+	&cleanBamSE($bam, $outdir, $falseFragRegionsBedFile);
+}
+
+## SMARTestimatFragLen
+sub SMARTestimatFragLen {
+my $usage = <<"USAGE";
+
+Usage: SMARTcleaner estimateFragLength [options] <bed> <bam>
+
+Options:
+    -o DIR  output results to DIR [./]
+    -f NUM  flanking region size (bp) around poly(dT/dA) for estimating fragment length [2000]
+
+USAGE
+
+
+	my @cmd = ("estimateFragLength", @ARGV);
+
+	my $outdir; # check if is defined
+	my $checkFlankingRegionSize = 2000; 
+	GetOptions(
+		"o|outdir=s" => \$outdir,
+		"f|flank=i"  => \$checkFlankingRegionSize
+	) or die $usage;
+	die $usage if @ARGV < 2;
+	my ($bed, $bam) = @ARGV;
+	say STDERR "$0 @cmd";
+
+	# outdir
+	if ( defined $outdir) {
+		make_path("$outdir") unless -d $outdir;
+	} else {
+		$outdir = ".";
+	}
+
+	# fraglen
+	&SMARTestimatFragLenPrvt($bed, $bam, $outdir, $checkFlankingRegionSize);
+
+}
+
+## SMARTestimatFragLenPrvt
+sub SMARTestimatFragLenPrvt {
+	my ($bed, $bam, $outdir, $checkFlankingRegionSize) = @_;
+
+	# outdir
+	if ( defined $outdir) {
+		make_path("$outdir") unless -d $outdir;
+	} else {
+		$outdir = ".";
+	}
+
+	# check samtools
+	&SMARTcheckDependencies();
+
+	# check PE/SE
+	my $flagPESE = &SMARTjudge($bam);
+
+	# check bam index
+	&SMARTcheckBai($bam); # check and fix to avoid interuption of program
+	say STDERR "Calculating the fragment length distribution for $bam";
+
+	## decide checking regions: flanking regions of polyAT
+	## read regions into hash
+	my $bedregion; # $bedregion->{$chr}->{$start} = $end
+	my $bedtype; # $bedtype->{$chr}->{$start} = [polyA|polyT]
+	my $bedsize; # $bedsize->{$chr}->{$start} = [size]
+	open(BED, "<", $bed) or die "cannot open $bed: $!";
+	while ( <BED> ){
+		chomp;
+		next if /^#/;
+		next if /^\s*$/;
+		my ($chr, $start, $end, $poly, $length, $strand) = split(/\t/);
+		my $middle; # middle point of the extended region
+		if ( $poly =~ m/polyT/i ) {
+			$middle = $start;
+			$start  = $middle - $checkFlankingRegionSize;
+			$end    = $middle + $checkFlankingRegionSize;
+		} elsif ( $poly =~ m/polyA/i ) {
+			$middle = $end;
+			$start  = $middle - $checkFlankingRegionSize;
+			$end    = $middle + $checkFlankingRegionSize;
+		} else {
+			warn "Skip non-poly(dT/dA) regions: $_";
+			next;
+		}
+		my $polyN = ( $poly =~ m/polyA/i ) ? ("PolyA") : ("PolyT"); # tag polyA polyT
+		$bedregion->{$chr}->{$start} = $end;
+		$bedtype->{$chr}->{$start} = $polyN;
+		$bedsize->{$chr}->{$start} = $length;
+	}
+	close BED;
+	## sort for later query (by chr)
+	my $sortedBedRegions; # $sortedBedRegions->{ $chr } = []
+	for my $chr (keys %$bedregion) {
+		push @{ $sortedBedRegions->{ $chr } }, sort { $a <=> $b } keys %{ $bedregion->{$chr} }; # 1 >> 9
+	}
+
+	# estimate fragment length of falsely primed fragments for SE data
+	my $statFragLen;    # $statFragLen   ->{ "PolyAplus|PolyAminus|PolyTplus|PolyTminus" }->{ $polyLength }->{ $fraglength } ++
+	my $statPolyRegion; # $statPolyRegion->{ "PolyA|PolyT" }->{ $polyLength } ++
+
+	## go through the bam file
+	open(BAMRAW, "samtools view -h -F 4 $bam | "); # only keep mapped reads
+	my $preChr; # check if chr is changed when proceeding to the next read
+	my $preBedRegionStart; # check if the region is changed when proceeding to the next read
+	my $preBedRegionEnd;
+	my $anyRead = 0;
+	my $polyN;
+	my $polyLength;
+	my $iBED = 0;
+	my $iAll = 0;
+	while ( <BAMRAW> ) {
+		chomp;
+		if ( /^@/ ) { # sam header
+			next;
+		} else { # process reads
+			$iAll ++;
+			my @F = split(/\t/);
+			my $flag = $F[ 1 ]; # + -
+			my $chr  = $F[ 2 ];
+			my $readStart= $F[ 3 ];
+			my $readSeq = $F[ 9 ]; # 10. SEQ: segment SEQuence. This field can be a ‘*’ when the sequence is not stored.
+			my $readEnd = $readStart + length($readSeq);
+
+			## check ends for PE_R1/SE
+			my $readCheckEnd;
+			if ($flagPESE eq "PE") { # PE
+				if ($flag & 0x40) { 	# 0x40	64	READ1
+					if ($flag & 0x10) { # 0x10	16	REVERSE
+						$readCheckEnd = $readEnd;
+					} else { # plus strand
+						$readCheckEnd = $readStart;
+					}
+				} elsif ($flag & 0x80) { # 0x80	128	READ2
+					next;
+				} else { # no proper flag
+					warn "FLAG not properly set for PE reads: $_";
+					next;
+				}
+			} elsif ($flagPESE eq "SE") { # SE
+				if ($flag & 0x10) { # 0x10	16	REVERSE
+					$readCheckEnd = $readEnd;
+				} else { # plus strand
+					$readCheckEnd = $readStart;
+				}
+			} else {
+				warn "Unknown PE/SE: $_";
+				next;
+			}
+			# decided $readCheckEnd for this read/fragment
+
+			# initialize
+			unless ( defined $preChr ) { # only run for 1st read to check
+				$preChr = $chr;
+				$preBedRegionStart = $sortedBedRegions->{$chr}->[0];
+				$preBedRegionEnd   = $bedregion->{$chr}->{ $preBedRegionStart };
+				$anyRead = 0;
+				$polyN = $bedtype->{$preChr}->{$preBedRegionStart};
+				$polyLength = $bedsize->{$preChr}->{$preBedRegionStart};
+			}
+
+			## check against $sortedBedRegions # $sortedBedRegions->{ $chr } = []
+			RECHECKREAD:
+			if ( $chr eq $preChr ) { # read on the same $chr
+				# when there is no polyAT on $chr
+				unless ( exists $sortedBedRegions->{$chr} ) {
+					next;
+				}
+	
+				# when there is no more region to check on $chr
+				unless ( @{ $sortedBedRegions->{$chr} } > 0 ) {
+					next;
+				}
+
+				# when there is at least one region to check on $chr for one read: read vs. region
+				# three possibilities for read vs. region
+				# case1
+				if ( $readCheckEnd < $preBedRegionStart ) {
+					next;
+				# case2
+				} elsif ( ($readCheckEnd >= $preBedRegionStart) && ($readCheckEnd < $preBedRegionEnd) ) {
+					# when the read is in the checked region (need to calculate fraglen)
+					# process reads by strands: A/T, +/-
+					my $fraglength = $readCheckEnd - ($preBedRegionStart + $preBedRegionEnd)/2;
+					if ( $flag & 0x10 ) { # 0x10	16	REVERSE (minus)
+						my $polyLabel = join("", $polyN, "minus");
+						$statFragLen->{$polyLabel}->{ $polyLength }->{ $fraglength } ++;
+					} else {
+						my $polyLabel = join("", $polyN, "plus");
+						$statFragLen->{$polyLabel}->{ $polyLength }->{ $fraglength } ++;						
+					}
+					$anyRead ++;
+				# case3
+				} else {
+					# 0.read goes beyond the present region under study
+
+					# 1.process reads in the present region and move on to next
+					while ( (@{ $sortedBedRegions->{$chr} } > 0) && ($preBedRegionEnd <= $readCheckEnd) ) { # on the same $chr
+						# check if there is any read in this region
+						if ( $anyRead > 0 ) { # there are reads in studied region
+							$iBED ++;
+							$statPolyRegion->{ $polyN }->{ $polyLength } ++;
+						}
+		
+						# move on to the next region, and reset variables for resampling region
+						while ( ( @{ $sortedBedRegions->{$chr} } > 0 ) && ($sortedBedRegions->{$chr}->[0] < $preBedRegionEnd) ) { # overlap regions, ignore the later ones
+							shift @{ $sortedBedRegions->{$chr} };
+						}
+						$preBedRegionStart = $sortedBedRegions->{$chr}->[0];
+						$preBedRegionEnd   = $bedregion->{$chr}->{ $preBedRegionStart } if defined $preBedRegionStart;
+						$anyRead = 0;
+						$polyN = $bedtype->{$preChr}->{$preBedRegionStart} if defined $preBedRegionStart;
+						$polyLength = $bedsize->{$preChr}->{$preBedRegionStart} if defined $preBedRegionStart;
+					}
+				
+					# 2.recheck this read on this chr
+					goto RECHECKREAD;
+				}
+			} else { # diff chr
+				# read moves on to a different $chr
+				# need to process the region on the previous chr: $preChr
+				if ( $anyRead > 0 ) { # there are reads in studied region
+					$iBED ++;
+					$statPolyRegion->{ $polyN }->{ $polyLength } ++;
+				}
+				
+				# after processing, move on to the new chr, and reset variables for resampling region
+				$preChr = $chr;
+				$preBedRegionStart = $sortedBedRegions->{$chr}->[0];
+				$preBedRegionEnd   = $bedregion->{$chr}->{ $preBedRegionStart };
+				$anyRead = 0;
+				$polyN = $bedtype->{$preChr}->{$preBedRegionStart};
+				$polyLength = $bedsize->{$preChr}->{$preBedRegionStart};
+
+				# recheck this read on a new chr
+				goto RECHECKREAD;
+			}
+			# next read
+		}
+	}
+	close BAMRAW;
+
+	## process $statPolyRegion and $statFragLen to get required info $plotFalsePrimeEfficiency and $plotDistFL
+	## $statPolyRegion->{ "PolyA|PolyT" }->{ $polyLength } ++
+	my $plotFalsePrimeEfficiency; # $plotFalsePrimeEfficiency->{ $polyLength }->{ "RegionNum|FragNum" } ++
+	for my $polyAT ( keys %$statPolyRegion ) {
+		for my $polyLength ( keys %{ $statPolyRegion->{$polyAT} } ) {
+			my $polyLengthFreq = $statPolyRegion->{ $polyAT }->{ $polyLength };
+			$plotFalsePrimeEfficiency->{ $polyLength }->{ "RegionNum" } += $polyLengthFreq; # cmp with bed file to confirm
+		}
+	}
+	## $statFragLen->{ "PolyAplus|PolyAminus|PolyTplus|PolyTminus" }->{ $polyLength }->{ $fraglength } ++
+	my @polyNs = qw( PolyTplus PolyTminus PolyAplus PolyAminus ); # keys %$statFragLen # keep this order !!!
+	my $plotDistFL; # $plotDistFL->{ $polyN }->{ $fraglength } += $freq
+	for my $polyN ( @polyNs ) {
+		for my $polyLength ( keys %{ $statFragLen->{ $polyN } } ) {
+			for my $fraglength ( keys %{ $statFragLen->{ $polyN }->{ $polyLength } } ) {
+				my $freq = $statFragLen->{ $polyN }->{ $polyLength }->{ $fraglength };
+				$plotDistFL->{ $polyN }->{ $fraglength } += $freq;
+				$plotFalsePrimeEfficiency->{ $polyLength }->{ "FragNum" } += $freq;
+			}
+		}
+	}
+
+	## estimate fraglength in $checkFlankingRegionSize: 1/2 as baseline; 1/2 search for fraglength
+	## $plotDistFL->{ $polyN }->{ $fraglength } += $freq
+	my $PolyTplusFL;
+	my $PolyAminusFL;
+
+	## PolyTplus
+	my @sortedFragLength = sort { $a <=> $b } keys %{ $plotDistFL->{"PolyTplus"} }; # ascending
+	my $mostFreqLength = 0;
+	my $largestFreq = 0;
+	# get $mostFreqLength
+	for my $fraglength ( @sortedFragLength ) {
+		my $freq = $plotDistFL->{"PolyTplus"}->{$fraglength};
+		if ($freq > $largestFreq) {
+			$mostFreqLength = $fraglength;
+			$largestFreq = $freq;
+		}
+	}
+	my $PolyTplusMostFreqLength = $mostFreqLength;
+	my $PolyTplusLargestFreq = $largestFreq;
+	$mostFreqLength = 0;
+	$largestFreq = 0;
+	# get $baselineFreq from 1/2 of $checkFlankingRegionSize
+	for (my $i = 0; $sortedFragLength[$i] < int(- $checkFlankingRegionSize / 2); $i++ ) {
+		my $freq = $plotDistFL->{"PolyTplus"}->{$sortedFragLength[$i]};
+		if ($freq > $largestFreq) {
+			$mostFreqLength = $sortedFragLength[$i];
+			$largestFreq = $freq;
+		}
+	}
+	my $PolyTplusBaselineFreq = $largestFreq;
+	$mostFreqLength = 0;
+	$largestFreq = 0;
+	# get $PolyTplusFL: decreasing from $PolyTplusLargestFreq to $PolyTplusBaselineFreq
+	if ($PolyTplusLargestFreq == $PolyTplusBaselineFreq) {
+		warn "The region ($checkFlankingRegionSize) is too small to accurately estimate the region of falsely primed fragments. Please try a larger value.";
+	}
+	while( @sortedFragLength > 0 ) {
+		my $fraglength = pop @sortedFragLength;
+		if ($fraglength > $PolyTplusMostFreqLength) {
+			next;
+		} else { # check $plotDistFL->{ $polyN }->{ $fraglength } += $freq
+			$PolyTplusFL = $fraglength if $plotDistFL->{"PolyTplus"}->{$fraglength} > $PolyTplusBaselineFreq;
+		}
+	}
+	
+	## PolyAminus
+	@sortedFragLength = sort { $b <=> $a } keys %{ $plotDistFL->{"PolyAminus"} }; # descending
+	$mostFreqLength = 0;
+	$largestFreq = 0;
+	# get $mostFreqLength
+	for my $fraglength ( @sortedFragLength ) {
+		my $freq = $plotDistFL->{"PolyAminus"}->{$fraglength};
+		if ($freq > $largestFreq) {
+			$mostFreqLength = $fraglength;
+			$largestFreq = $freq;
+		}
+	}
+	my $PolyAminusMostFreqLength = $mostFreqLength;
+	my $PolyAminusLargestFreq = $largestFreq;
+	$mostFreqLength = 0;
+	$largestFreq = 0;
+	# get $baselineFreq from 1/2 of $checkFlankingRegionSize
+	for (my $i = 0; $sortedFragLength[$i] > int($checkFlankingRegionSize / 2); $i++ ) {
+		my $freq = $plotDistFL->{"PolyAminus"}->{$sortedFragLength[$i]};
+		if ($freq > $largestFreq) {
+			$mostFreqLength = $sortedFragLength[$i];
+			$largestFreq = $freq;
+		}
+	}
+	my $PolyAminusBaselineFreq = $largestFreq;
+	$mostFreqLength = 0;
+	$largestFreq = 0;
+	# get $PolyAminusFL: increasing from $PolyAminusLargestFreq to $PolyAminusBaselineFreq
+	if ($PolyAminusLargestFreq == $PolyAminusBaselineFreq) {
+		warn "The region ($checkFlankingRegionSize) is too small to accurately estimate the region of falsely primed fragments. Please try a larger value.";
+	}
+	while( @sortedFragLength > 0 ) {
+		my $fraglength = pop @sortedFragLength;
+		if ($fraglength < $PolyAminusMostFreqLength) {
+			next;
+		} else { # check $plotDistFL->{ $polyN }->{ $fraglength } += $freq
+			$PolyAminusFL = $fraglength if $plotDistFL->{"PolyAminus"}->{$fraglength} > $PolyAminusBaselineFreq;
+		}
+	}
+
+	## get return value for fraglength - $reportedFL
+	my $reportedFL = ( abs($PolyTplusFL) > abs($PolyAminusFL) ) ? ( abs($PolyTplusFL) ) : ( abs($PolyAminusFL) );
+	say STDERR "Estimated fragment length at PolyT regions: $PolyTplusFL bp";
+	say STDERR "Estimated fragment length at PolyA regions: $PolyAminusFL bp";
+	say STDERR "Estimated fragment length is $reportedFL bp ($bam)";
+
+	## output Rscript
+	my $rscriptbase = join(".", basename($bam), "vs", basename($bed), "FL${reportedFL}.plot.R");
+	my $rscript = join("/", $outdir, $rscriptbase );
+	open(R, ">", $rscript);
+	say R join("=", "PolyTplusFL", $PolyTplusFL);
+	say R join("=", "PolyAminusFL", $PolyAminusFL);
+
+	# $plotDistFL->{ $polyN }->{ $fraglength } += $freq
+	for my $polyN ( keys %$plotDistFL ) {
+		my @fraglength4R;
+		my @freq4R;
+		for my $fraglength ( sort { $a <=> $b } keys %{ $plotDistFL->{ $polyN } } ) { # sort numerically ascending
+			push @fraglength4R, $fraglength;
+			push @freq4R, $plotDistFL->{ $polyN }->{ $fraglength };
+		}
+		my $var = join("", $polyN, "FragLength");
+		my $val = join("", $polyN, "Freq");
+		say R join("", "$var=c(", join(",",@fraglength4R), ")");
+		say R join("", "$val=c(", join(",",@freq4R), ")");
+	}
+
+	# $plotFalsePrimeEfficiency->{ $polyLength }->{ "RegionNum|FragNum" } ++
+	my @polyLength4R;
+	my @RegionNum4R;
+	my @FragNum4R;
+	for my $polyLength ( sort { $a <=> $b } keys %$plotFalsePrimeEfficiency ) { # sort numerically ascending
+		my $RegionNum = $plotFalsePrimeEfficiency->{ $polyLength }->{"RegionNum"};
+		my $FragNum = $plotFalsePrimeEfficiency->{ $polyLength }->{"FragNum"};
+		push @polyLength4R, $polyLength;
+		push @RegionNum4R, $RegionNum;
+		push @FragNum4R, $FragNum;
+	}
+	say R join("", "polyLength4R=c(", join(",",@polyLength4R), ")");
+	say R join("", "RegionNum4R=c(", join(",",@RegionNum4R), ")");
+	say R join("", "FragNum4R=c(", join(",",@FragNum4R), ")");
+
+	# plotting
+	my $plotpdffile = join(".", basename($bam), "vs", basename($bed), "FL${reportedFL}.plot.pdf");  # detect script dir???
+	say R &plotCode( $plotpdffile );
+	# close Rscript
+	close R;
+	# try to execute rscript
+	if ( `which Rscript` ) {
+		`cd $outdir && Rscript $rscriptbase` or warn "Run $rscript later to get fragment distribution";
+	} else {
+		say STDERR "Run $rscript later to get fragment distribution";
+	}
+
+	## return value
+	return $reportedFL;
+}
+
+## plotCode
+sub plotCode {
+	my ($plotpdffile) = @_;
+	my $code = <<"PLOTCODE";
+
+maxFreq <- max(PolyAminusFreq, PolyAplusFreq, PolyTminusFreq, PolyTplusFreq)
+maxFL <- max(PolyAminusFragLength, PolyAplusFragLength, PolyTminusFragLength, PolyTplusFragLength)
+minFL <- min(PolyAminusFragLength, PolyAplusFragLength, PolyTminusFragLength, PolyTplusFragLength)
+
+dirname <- getwd()
+finalfile <- file.path(dirname, "$plotpdffile", fsep = .Platform\$file.sep)
+
+pdf(finalfile, width = 8, height = 4)
+layout(matrix(1:2,nrow = 1))
+
+plot(x=c(minFL,maxFL), y = c(- maxFreq, maxFreq), type = "n", xlab = "Distance to poly(T) regions", ylab = "Read distribution on plus/minus strand", las=1)
+abline(v=0, h=0, col="black")
+abline(v=PolyTplusFL, col="blue", lty=2)
+lines(x=PolyTplusFragLength, y= PolyTplusFreq, col="red")
+lines(x=PolyTminusFragLength, y= - PolyTminusFreq, col="green")
+
+plot(x=c(minFL,maxFL), y = c(- maxFreq, maxFreq), type = "n", xlab = "Distance to poly(A) regions", ylab = "Read distribution on plus/minus strand", las=1)
+abline(v=0, h=0, col="black")
+abline(v=PolyAminusFL, col="blue", lty=2)
+lines(x=PolyAplusFragLength, y= PolyAplusFreq, col="red")
+lines(x=PolyAminusFragLength, y= - PolyAminusFreq, col="green")
+
+layout(matrix(1,nrow = 1))
+barplot(FragNum4R, names.arg = polyLength4R, xlab = "Poly(T/A) region size", ylab ="Total fragment number")
+barplot(RegionNum4R, names.arg = polyLength4R, xlab = "Poly(T/A) region size", ylab="Total region number")
+barplot(FragNum4R/RegionNum4R, names.arg = polyLength4R, xlab = "Poly(T/A) region size", ylab="Average fragment number per region")
+
+dev.off()
+
+PLOTCODE
+
+return $code;
+
+}
+
+## genFalseFragRegionBed - SE
+sub genFalseFragRegionBed {
+	my ($bed,$bam,$outdir,$fraglength) = @_;
+
+	# genFalseFragRegionBed (extend at one direction)
+	say STDERR "Generate resampling regions based on falsely primed fragment length: ($bed) and ($fraglength)";
+	my $falseFragRegionsBedFile = join("/", $outdir, join(".", basename($bam), "vs", basename($bed), "FL$fraglength", "falseFragRegions.bed") );
+	open(BED, "<", $bed);
+	open(RES, ">", $falseFragRegionsBedFile);
+	while ( <BED> ){
+		chomp;
+		my ($chr, $s, $e, $poly, $length, $strand) = split(/\t/);
+		if ( $poly =~ m/polyT/i ) {
+			$e = $s;
+			$s -= $fraglength;
+		} elsif ( $poly =~ m/polyA/i ) {
+			$s = $e;
+			$e += $fraglength;
+		} else {
+			warn "Skip non-poly(dT/dA) regions: $_";
+			next;
+		}
+		say RES join("\t", $chr, $s, $e, $poly, $length, $strand);
+	} 
+	close BED;
+	close RES;
+	# sort again
+	my $cmdSortBed = "sort -k1,1 -k2,2n $falseFragRegionsBedFile -o $falseFragRegionsBedFile";
+	if ( system($cmdSortBed) == 0 ) {
+		say STDERR "Sorted $falseFragRegionsBedFile";
+	} else {
+		say STDERR "Fail to sort $falseFragRegionsBedFile: $! $?";
+	}
+	# return
+	return $falseFragRegionsBedFile;
+}
+
+## cleanBamSE - SE
+sub cleanBamSE {
+	my ($bam, $outdir, $falseFragRegionsBedFile) = @_;
+	my $fcCutoff = 2;
+	say STDERR "Start to clean $bam";
+
+	## result files
+	my $resNoiseBamFile = join("/", $outdir, join(".", basename($falseFragRegionsBedFile), "noise.bam") );
+	my $resCleanBamFile = join("/", $outdir, join(".", basename($falseFragRegionsBedFile), "clean.bam") );
+
+	## read regions into hash
+	#my $bedregion; # $bedregion->{$chr}->{$start}->{$polyN} = $end
+	my $bedregion; # $bedregion->{$chr}->{$start} = $end
+	my $bedtype; # $bedtype->{$chr}->{$start} = [polyA|polyT]
+	open(BED, "<", $falseFragRegionsBedFile);
+	while ( <BED> ) {
+		chomp;
+		next if /^#/;
+		next if /^\s*$/;
+		my ($chr, $start, $end, $poly, $length, $strand) = split(/\t/);
+		my $polyN = ( $poly =~ m/polyA/i ) ? ("polyA") : ("polyT"); # tag polyA polyT
+		#$bedregion->{$chr}->{$start}->{$polyN} = $end; # direction
+		$bedregion->{$chr}->{$start} = $end;
+		$bedtype->{$chr}->{$start} = $polyN;
+	}
+	close BED;
+	## sort for later query (by chr)
+	my $sortedBedRegions; # $sortedBedRegions->{ $chr } = []
+	for my $chr (keys %$bedregion) {
+		push @{ $sortedBedRegions->{ $chr } }, sort { $a <=> $b } keys %{ $bedregion->{$chr} }; # 1 >> 9
+	}
+
+	## go through the bam file
+	## For polyT: check if the  left-end of a read is in the region
+	## For polyA: check if the right-end of a read is in the region
+	open(BAMRAW, "samtools view -h -F 4 $bam | "); # only keep mapped reads
+	open(BAMCLEAN, " | samtools view -b -o $resCleanBamFile - ") or die "Cannot write to $resCleanBamFile: $!";
+	open(BAMNOISE, " | samtools view -b -o $resNoiseBamFile - ") or die "Cannot write to $resNoiseBamFile: $!";
+	my $preChr; # check if chr is changed when proceeding to the next read
+	my $preBedRegionStart; # check if the region is changed when proceeding to the next read
+	my $preBedRegionEnd;
+	my $readSeqOrderInRegion = 0; # read seq order at resampling regions, 0..N, array index
+	my $regionalReads; @$regionalReads = (); # @$regionalReads[ read ], index is the same as $readSeqOrderInRegion
+	my $plusReads; @$plusReads=(); # store $readSeqOrderInRegion at resampling region, array index of @$regionalReads
+	my $minusReads; @$minusReads=();
+
+	my $iBED = 0; # count resampling regions
+	my $iDel = 0;
+	my $iAll = 0;
+	say STDERR join("\t", qw(Order Chr Start End PolyT/A preCleanPlusReads preCleanMinusReads postCleanPlusReads postCleanMinusReads RemovedReads) );
+	while ( <BAMRAW> ) {
+		chomp;
+		if ( /^@/ ) { # sam header
+			say BAMCLEAN $_;
+			say BAMNOISE $_;
+		} else { # process reads
+			$iAll ++;
+			my @F = split(/\t/);
+			my $flag = $F[ 1 ]; # + -
+			my $chr  = $F[ 2 ];
+			my $readStart= $F[ 3 ];
+			my $readSeq = $F[ 9 ]; # 10. SEQ: segment SEQuence. This field can be a ‘*’ when the sequence is not stored.
+			my $readEnd = $readStart + length($readSeq);
+			my $readCheckEnd = ($flag & 0x10) ? ($readEnd) : ($readStart); # 0x10	16	REVERSE (on minus strand)
+
+			# initialize
+			unless ( defined $preChr ) { # only run for 1st read to check
+				$preChr = $chr;
+				if ( exists $sortedBedRegions->{$chr} ) {
+					$preBedRegionStart = $sortedBedRegions->{$chr}->[0];
+					$preBedRegionEnd   = $bedregion->{$chr}->{ $preBedRegionStart };
+					@$regionalReads = ();
+					@$plusReads=();
+					@$minusReads=();
+				}
+			}
+
+			## check against $sortedBedRegions # $sortedBedRegions->{ $chr } = []
+			RECHECKREAD:
+			# the read may come from different chr
+	# same chr
+			if ( $chr eq $preChr ) {
+				# read on the same $chr
+				# avoid changing the sorted order of reads, esp. when changing to a new chr and there is no polyAT on this chr
+
+				# when there is no polyAT on $chr
+				unless ( exists $sortedBedRegions->{$chr} ) {
+					say BAMCLEAN $_;
+					next;
+				}
+	
+				# when there is no more region to check on $chr
+				unless ( @{ $sortedBedRegions->{$chr} } > 0 ) {
+					say BAMCLEAN $_;
+					next;
+				}
+
+				# when there is at least one region to check on $chr for one read: read vs. region
+				# three possibilities for read vs. region
+	# case1
+				if ( $readCheckEnd < $preBedRegionStart ) {
+					say BAMCLEAN $_;
+					next;
+	# case2
+				} elsif ( ($readCheckEnd >= $preBedRegionStart) && ($readCheckEnd < $preBedRegionEnd) ) {
+					# when the read is in the checked region (need to resample reads)
+					# get all reads in this region and separate them by strands: @plusReads, @minusReads
+					if ( $flag & 0x10 ) { # 0x10	16	REVERSE (minus)
+						push @$regionalReads, $_;
+						push @$minusReads, $readSeqOrderInRegion;
+						$readSeqOrderInRegion ++;
+					} else {
+						push @$regionalReads, $_;
+						push @$plusReads, $readSeqOrderInRegion;
+						$readSeqOrderInRegion ++;
+					}
+	# case3
+				} else {
+					# 0.read goes beyond the present region under study
+
+					# 1.process reads in the present region and move on to next
+					while ( (@{ $sortedBedRegions->{$chr} } > 0) && ($preBedRegionEnd <= $readCheckEnd) ) { # on the same $chr
+						# check if there is any read in this region
+						if ( @$regionalReads > 0 ) { # there are reads in resampling region
+							# check if re-sampling is needed at the region in which the previous read reside ($chr + region)
+							my $polyN = $bedtype->{$preChr}->{$preBedRegionStart};
+							my $plusReadsNum = scalar( @$plusReads );
+							my $minusReadsNum= scalar( @$minusReads );
+							my $fcCutoff = 1.1;
+							my $resShouldResamp = &shouldResamp($polyN, $plusReadsNum, $minusReadsNum, $fcCutoff);
+							my @finalReads = (); # finally output for a region
+							my @resampledReadsOnStrand = (); # sample one strand
+							my @deleted = ();
+							my @resamplingDetails = ();
+							if ( $resShouldResamp eq "yes" ) { # resampling
+								$iBED ++;
+								if ( $polyN eq "polyT" ) { # resample plus strand
+									@$plusReads = shuffle( @$plusReads );
+									my $resampnumber = scalar(@$minusReads);
+									$resampnumber = $resampnumber + int( $resampnumber * ( (rand(40) - 20)/100 ) ); ## allow +/- 20% variation
+									$resampnumber = 0 if $resampnumber < 0;
+									@resampledReadsOnStrand = @$plusReads[ 0 .. ($resampnumber - 1) ];
+									@finalReads = sort { $a<=>$b } ( @resampledReadsOnStrand, @$minusReads );
+									@deleted    = sort { $a<=>$b } @$plusReads[ $resampnumber .. (scalar(@$plusReads) - 1) ];
+									$iDel += scalar(@deleted);
+									push @resamplingDetails, $iBED, $preChr, $preBedRegionStart, $preBedRegionEnd, $polyN, $plusReadsNum, $minusReadsNum, 
+										scalar(@resampledReadsOnStrand), scalar(@$minusReads), scalar(@deleted); 
+								} elsif ( $polyN eq "polyA" ) { # resample minus strand
+									@$minusReads = shuffle( @$minusReads );
+									my $resampnumber = scalar(@$plusReads); ## edit
+									$resampnumber = $resampnumber + int( $resampnumber * ( (rand(40) - 20)/100 ) ); ## allow +/- 20% variation
+									$resampnumber = 0 if $resampnumber < 0;
+									@resampledReadsOnStrand = @$minusReads[ 0 .. ($resampnumber - 1) ];
+									@finalReads = sort { $a<=>$b } ( @resampledReadsOnStrand, @$plusReads );
+									@deleted    = sort { $a<=>$b } @$minusReads[ $resampnumber .. (scalar(@$minusReads) - 1) ];
+									$iDel += scalar(@deleted);
+									push @resamplingDetails, $iBED, $preChr, $preBedRegionStart, $preBedRegionEnd, $polyN, $plusReadsNum, $minusReadsNum, 
+										scalar(@$plusReads), scalar(@resampledReadsOnStrand), scalar(@deleted); 
+								} else {
+									warn "Skip non-poly(dT/dA) regions";
+									next;
+								}
+								say BAMCLEAN join("\n", @$regionalReads[ @finalReads ]) if @finalReads > 0;
+								say BAMNOISE join("\n", @$regionalReads[ @deleted ]);
+								# output resampling details
+								say STDERR join("\t", @resamplingDetails);
+							} elsif ( $resShouldResamp eq "no" ) { # no resampling, output to clean directly
+								say BAMCLEAN join("\n", @$regionalReads);
+							} else { # no read at this region
+								# null process
+							}
+						}
+		
+						# move on to the next region, and reset variables for resampling region
+						shift @{ $sortedBedRegions->{$chr} };
+						if ( @{ $sortedBedRegions->{$chr} } > 0) {
+							$preBedRegionStart = $sortedBedRegions->{$chr}->[0];
+							$preBedRegionEnd   = $bedregion->{$chr}->{ $preBedRegionStart };
+							$readSeqOrderInRegion = 0;
+							@$regionalReads = ();
+							@$plusReads = ();
+							@$minusReads = ();
+						} else { # last region on chr
+							goto RECHECKREAD;
+						}
+					}
+				
+					# 2.recheck this read on this chr
+					goto RECHECKREAD;
+				}
+	# diff chr
+			} else {
+				# read moves on to a different $chr
+				# need to process the region on the previous chr: $preChr
+				# only need to process case2 (case1 outputs read; case3 moves on to next region)
+				# case2 may still hold reads for resampling: resampling or not?
+				# DON'T CHANGE REGION HERE (shift array)
+				# copy code from case3, while loop, if clause
+				if ( @$regionalReads > 0 ) { # there are reads in resampling region
+					$iBED ++;
+					# check if re-sampling is needed at the region in which the previous read reside ($chr + region)
+					my $polyN = $bedtype->{$preChr}->{$preBedRegionStart};
+					my $plusReadsNum = scalar( @$plusReads );
+					my $minusReadsNum= scalar( @$minusReads );
+					my $fcCutoff = 1.1;
+					my $resShouldResamp = &shouldResamp($polyN, $plusReadsNum, $minusReadsNum, $fcCutoff);
+					my @finalReads = (); # finally output for a region
+					my @resampledReadsOnStrand = (); # sample one strand
+					my @deleted = ();
+					my @resamplingDetails = ();
+					if ( $resShouldResamp eq "yes" ) { # resampling
+						if ( $polyN eq "polyT" ) { # resample plus strand
+							@$plusReads = shuffle( @$plusReads );
+							my $resampnumber = scalar(@$minusReads);
+							$resampnumber = $resampnumber + int( $resampnumber * ( (rand(40) - 20)/100 ) ); ## allow +/- 20% variation
+							$resampnumber = 0 if $resampnumber < 0;
+							@resampledReadsOnStrand = @$plusReads[ 0 .. ($resampnumber  - 1) ];
+							@finalReads = sort { $a<=>$b } ( @resampledReadsOnStrand, @$minusReads );
+							@deleted = sort {$a<=>$b} @$plusReads[ $resampnumber .. (scalar(@$plusReads) - 1) ];
+							$iDel += scalar(@deleted);
+							push @resamplingDetails, $iBED, $preChr, $preBedRegionStart, $preBedRegionEnd, $polyN, $plusReadsNum, $minusReadsNum, 
+								scalar(@resampledReadsOnStrand), scalar(@$minusReads), scalar(@deleted); 
+						} elsif ( $polyN eq "polyA" ) { # resample minus strand
+							@$minusReads = shuffle( @$minusReads );
+							my $resampnumber = scalar(@$plusReads);
+							$resampnumber = $resampnumber + int( $resampnumber * ( (rand(40) - 20)/100 ) ); ## allow +/- 20% variation
+							$resampnumber = 0 if $resampnumber < 0;
+							@resampledReadsOnStrand = @$minusReads[ 0 .. ($resampnumber - 1) ];
+							@finalReads = sort { $a<=>$b } ( @resampledReadsOnStrand, @$plusReads );
+							@deleted = sort {$a<=>$b} @$minusReads[ $resampnumber .. (scalar(@$minusReads) - 1) ];
+							$iDel += scalar(@deleted);
+							push @resamplingDetails, $iBED, $preChr, $preBedRegionStart, $preBedRegionEnd, $polyN, $plusReadsNum, $minusReadsNum, 
+								scalar(@$plusReads), scalar(@resampledReadsOnStrand), scalar(@deleted); 
+						} else {
+							warn "Skip non-poly(dT/dA) regions";
+							next;
+						}
+						say BAMCLEAN join("\n", @$regionalReads[ @finalReads ]) if @finalReads > 0;
+						say BAMNOISE join("\n", @$regionalReads[ @deleted ]);
+						# output resampling details
+						say STDERR join("\t", @resamplingDetails);
+					} elsif ( $resShouldResamp eq "no" ) { # no resampling, output to clean directly
+						say BAMCLEAN join("\n", @$regionalReads);
+					} else { # no read at this region
+						# null process
+					}
+				}
+				
+				# after processing, move on to the new chr, and reset variables for resampling region
+				$preChr = $chr;
+				if (exists $sortedBedRegions->{$chr}) {
+					$preBedRegionStart = $sortedBedRegions->{$chr}->[0];
+					$preBedRegionEnd   = $bedregion->{$chr}->{ $preBedRegionStart };
+					$readSeqOrderInRegion = 0;
+					@$regionalReads = ();
+					@$plusReads = ();
+					@$minusReads = ();
+				} else {
+					goto RECHECKREAD;
+				}
+
+				# recheck this read on a new chr
+				goto RECHECKREAD;
+			}
+			# next read
+		}
+	}
+	close BAMRAW;
+	close BAMCLEAN;
+	close BAMNOISE;
+
+	## output statistics
+	say STDERR join("\t", qw(Group Removed All Rate));
+	say STDERR join("\t", "Number", $iDel, $iAll, $iDel/$iAll);
+	say STDERR "Cleaned $bam";	
+}
+
+## shouldResamp - SE
+sub shouldResamp {
+	my ($polyN, $plusReadsNum, $minusReadsNum, $fcCutoff) = @_;
+	if ( $plusReadsNum + $minusReadsNum == 0 ) {
+		return "noRead";
+	} elsif ( $polyN eq "polyT" && ($plusReadsNum / ($minusReadsNum + 1) > $fcCutoff) ) {
+		return "yes";
+	} elsif ( $polyN eq "polyA" && ($minusReadsNum / ($plusReadsNum + 1) > $fcCutoff) ) {
+		return "yes";
+	} else {
+		return "no";
+	}
+}
+
+## identifyGenomicPolyN
+sub identifyGenomicPolyN {
+my $usage = <<"USAGE";
+
+Usage: SMARTcleaner identifyGenomicPolyN <genome> [N]
+
+<genome>  genome/chromosome sequences
+
+[N]      the number of consecutive bases in <fasta>, default 5
+
+USAGE
+die $usage if @ARGV<1;
+
+my ($genomeseq, $minlength) = @ARGV;
+$minlength = 5 unless defined $minlength;
+
+my @cmd = ("identifyGenomicPolyN", $genomeseq, $minlength);
+say STDERR "$0 @cmd";
+
+## process chr-by-chr
+no strict "refs";
+my @bases = qw(A T G C);
+for my $base (@bases) {
+	open($base, ">", join(".", basename($genomeseq), "poly${base}.bed") );
+}
+open(GENOME, "<", $genomeseq);
+$/ = ">";
+while ( <GENOME> ) {
+	chomp;
+	next if /^#/;
+	next if /^\s*$/;
+	my ($header, @seq) = split(/\n/);
+	my ($chr) = split(/\s+/, $header);
+	my $fa = join("", @seq);
+	$fa =~ s/\s//g;
+	say STDERR join("\t", $chr, length($fa));
+
+	my $i;
+	$i->{ $_ } = 0 for (@bases);
+	## begin to check for polyN
+	while ( $fa =~ m/A{$minlength,}|T{$minlength,}|G{$minlength,}|C{$minlength,}/ig ) {
+		my $base = uc( substr($&,0,1) );
+		my $start = pos($fa) - length($&) + 1; # 1-based, inclusive
+		my $end   = pos($fa); # 1-based, inclusive
+		$i->{ $base } ++;
+		my $ibase = $i->{ $base };
+		my $name  = "${chr}poly${base}${ibase}";
+		my $score = length($&);
+		my $strand= "+";
+		say $base join("\t", $chr, $start, $end, $name, $score, $strand);
+	}
+	# next $chr
+}
+close GENOME;
+$/ = "\n";
+}
+
+## stitchShortPolyN
+sub stitchShortPolyN {
+my $usage = <<"USAGE";
+
+Usage: SMARTcleaner stitchShortPolyN <genome> <closestPolyN>
+
+<genome>        genome/chromosome sequences
+
+<closestPolyN>  closest polyN regions and distance
+
+USAGE
+
+die $usage if @ARGV < 2; 
+my @cmd = ("stitchShortPolyN", @ARGV);
+say STDERR "$0 @cmd";
+
+my ($genome, @beds) = @ARGV;
+
+## read genome into hash
+my $ref; # $ref->{ $chr } = $fa
+$/=">";
+open(F, "<", $genome);
+while ( <F> ) {
+	chomp;
+	next if /^#/;
+	next if /^\s*$/;
+	my ($chr, @seq) = split(/\n/);
+	chomp @seq;
+	my $fa = join("", @seq);
+	$fa =~ s/\s//g;
+	$ref->{ $chr } = $fa;
+	say STDERR join("\t", $chr, length($fa));
+}
+close F;
+$/="\n";
+
+## readme
+for my $bed (@beds) {
+# filter by distance when reading
+open(BED, "<", $bed);
+my $resfile = join(".", basename($bed), "recalMMpolyN.txt" );
+open(RES, ">", $resfile);
+my $resbedfile = join(".", basename($bed), "interrupted.bed");
+open(RESBED, ">", $resbedfile);
+while ( <BED> ) {
+	chomp;
+	next if /^#/;
+	next if /^\s*$/;
+	my @F = split(/\t/);
+	my $chr = $F[ 0 ];
+	my $dist = $F[12];
+	next if ($dist < 0 or $dist >= 10);
+	my $s = $F[ 1 ]; # col2
+	my $e = $F[ 8 ]; # col9
+	my $length = $e - $s + 1;
+	my $poly1 = $F[ 3 ];
+	my $poly2 = $F[ 9 ];
+	my $N = ( $poly1 =~ /poly([ATGC])\d+/i ) ? ( $1 ) : ( "N" );
+	if ( exists $ref->{ $chr } ) {
+		my $seqfa = substr( $ref->{ $chr }, $s - 1, $length );
+		my $seqfa2 = $seqfa;
+		$seqfa2 =~ s/$N//gi;
+		my $mismatch = length( $seqfa2 );
+		my $poly = join("", $poly1, $poly2, "MM", $mismatch);
+		say RES join("\t", @F, $seqfa, $length, $mismatch);
+		say RESBED join("\t", $chr, $s, $e, $poly, $length, "+") if ($mismatch <= 2 && $length >= 12);
+	} else {
+		next;
+	}
+	# next line
+}
+close BED;
+close RES;
+close RESBED;
+}
+
+}
+
