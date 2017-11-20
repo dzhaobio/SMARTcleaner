@@ -76,7 +76,6 @@
 <p><b>Options</b>:</p>
   <p>-o &nbsp&nbsp DIR &nbsp&nbsp output results to DIR [./]</p>
   <p>-l &nbsp&nbsp NUM &nbsp&nbsp falsely primed fragment length, estimated from data by default [null]</p>
-  <p>-r &nbsp&nbsp STR &nbsp&nbsp method to resample reads near polyA or polyT regions ("opposite", "max") [opposite]</p>
 <p><b>Output</b>:</p>
 <p>Two alignment files: one for clean signal, one for noise</p>
 <p><b>Attention</b>:</p>
@@ -95,7 +94,7 @@
 <p>&ltclosestPolyN&gt: closest polyN regions and distance. </p>
 <p><b>Recomendation</b>: The closest polyN regions and distance could be generated using bedtools2. Refer to <a href="">wiki</a> for details.<p>
 <p><b>Output</b>:</p>
-<p>Two files: one containing the interrupted poly(T/A) regions, ready for cleaning in SE mode; the other containing the details of poly(dT/dA) regions that are stitiched together.</p>
+<p>Two files: one containing the interrupted poly(T/A) regions, ready for cleaning in SE mode; the other containing the details of poly(T/A) regions that are stitiched together.</p>
 
 <h3><a name="frag">Estimate falsely primed fragment length</a></h3>
 <p><b>Usange</b>: SMARTcleaner estimateFragLength [options] &ltbed&gt &ltbam&gt</p>
