@@ -92,7 +92,7 @@
 <p><b>Usange</b>: SMARTcleaner stitchShortPolyN &ltgenome&gt &ltclosestPolyN&gt</p>
 <p>&ltgenome&gt: genome/chromosome file in fasta format</p>
 <p>&ltclosestPolyN&gt: closest polyN regions and distance. </p>
-<p><b>Recomendation</b>: The closest polyN regions and distance could be generated using bedtools2. Refer to <a href="">wiki</a> for details.<p>
+<p><b>Recomendation</b>: The closest polyN regions and distance could be generated using bedtools2. Refer to <a href="https://github.com/dzhaobio/SMARTcleaner/wiki">wiki pages</a> for details.<p>
 <p><b>Output</b>:</p>
 <p>Two files: one containing the interrupted poly(T/A) regions, ready for cleaning in SE mode; the other containing the details of poly(T/A) regions that are stitiched together.</p>
 
