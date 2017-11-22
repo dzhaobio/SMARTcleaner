@@ -18,7 +18,7 @@ sub main {
 	my %func = (
 		cleanPEbam				=> \&SMARTcleanPEPileup,
 		cleanSEbam				=> \&SMARTcleanSE,
-		identifyGenomicPolyN	=> \&identifyGenomicPolyN,
+		identifyGenomicPolyN		=> \&identifyGenomicPolyN,
 		stitchShortPolyN		=> \&stitchShortPolyN,
 		estimateFragLength		=> \&SMARTestimatFragLen
 	);
@@ -1075,8 +1075,6 @@ sub cleanBamSE {
 								if ( $polyN eq "polyT" ) { # resample plus strand
 									@$plusReads = shuffle( @$plusReads );
 									my $resampnumber = scalar(@$minusReads);
-									$resampnumber = $resampnumber + int( $resampnumber * ( (rand(40) - 20)/100 ) ); ## allow +/- 20% variation
-									$resampnumber = 0 if $resampnumber < 0;
 									@resampledReadsOnStrand = @$plusReads[ 0 .. ($resampnumber - 1) ];
 									@finalReads = sort { $a<=>$b } ( @resampledReadsOnStrand, @$minusReads );
 									@deleted    = sort { $a<=>$b } @$plusReads[ $resampnumber .. (scalar(@$plusReads) - 1) ];
@@ -1086,8 +1084,6 @@ sub cleanBamSE {
 								} elsif ( $polyN eq "polyA" ) { # resample minus strand
 									@$minusReads = shuffle( @$minusReads );
 									my $resampnumber = scalar(@$plusReads); ## edit
-									$resampnumber = $resampnumber + int( $resampnumber * ( (rand(40) - 20)/100 ) ); ## allow +/- 20% variation
-									$resampnumber = 0 if $resampnumber < 0;
 									@resampledReadsOnStrand = @$minusReads[ 0 .. ($resampnumber - 1) ];
 									@finalReads = sort { $a<=>$b } ( @resampledReadsOnStrand, @$plusReads );
 									@deleted    = sort { $a<=>$b } @$minusReads[ $resampnumber .. (scalar(@$minusReads) - 1) ];
@@ -1150,8 +1146,6 @@ sub cleanBamSE {
 						if ( $polyN eq "polyT" ) { # resample plus strand
 							@$plusReads = shuffle( @$plusReads );
 							my $resampnumber = scalar(@$minusReads);
-							$resampnumber = $resampnumber + int( $resampnumber * ( (rand(40) - 20)/100 ) ); ## allow +/- 20% variation
-							$resampnumber = 0 if $resampnumber < 0;
 							@resampledReadsOnStrand = @$plusReads[ 0 .. ($resampnumber  - 1) ];
 							@finalReads = sort { $a<=>$b } ( @resampledReadsOnStrand, @$minusReads );
 							@deleted = sort {$a<=>$b} @$plusReads[ $resampnumber .. (scalar(@$plusReads) - 1) ];
@@ -1161,8 +1155,6 @@ sub cleanBamSE {
 						} elsif ( $polyN eq "polyA" ) { # resample minus strand
 							@$minusReads = shuffle( @$minusReads );
 							my $resampnumber = scalar(@$plusReads);
-							$resampnumber = $resampnumber + int( $resampnumber * ( (rand(40) - 20)/100 ) ); ## allow +/- 20% variation
-							$resampnumber = 0 if $resampnumber < 0;
 							@resampledReadsOnStrand = @$minusReads[ 0 .. ($resampnumber - 1) ];
 							@finalReads = sort { $a<=>$b } ( @resampledReadsOnStrand, @$plusReads );
 							@deleted = sort {$a<=>$b} @$minusReads[ $resampnumber .. (scalar(@$minusReads) - 1) ];
