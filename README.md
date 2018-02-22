@@ -112,3 +112,4 @@
 <h2><a name="Benchmarks">Benchmarks</a></h2>
 
 <h2><a name="Reference">Reference</a></h2>
+Dejian Zhao, Deyou Zheng. SMARTCleaner: identify and clean false priming signals in SMART libraries. https://doi.org/10.1101/269365
