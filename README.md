@@ -112,4 +112,4 @@
 <h2><a name="Benchmarks">Benchmarks</a></h2>
 
 <h2><a name="Reference">Reference</a></h2>
-Dejian Zhao, Deyou Zheng. SMARTCleaner: identify and clean false priming signals in SMART libraries. https://doi.org/10.1101/269365
+Dejian Zhao, Deyou Zheng. (2018). "SMARTcleaner: identify and clean off-target signals in SMART ChIP-seq analysis." BMC Bioinformatics 19(1): 544.
