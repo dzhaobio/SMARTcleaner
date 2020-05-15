@@ -112,4 +112,5 @@
 <ul>
 <li>Dejian Zhao, Deyou Zheng. (2018). "SMARTcleaner: identify and clean off-target signals in SMART ChIP-seq analysis." BMC Bioinformatics 19(1): 544. <a href="https://doi.org/10.1186/s12859-018-2577-4">https://doi.org/10.1186/s12859-018-2577-4</a></li>
 <li>Idan Cohen, Dejian Zhao, Carmit Bar, Victor J. Valdes, Katherine L. Dauber-Decker, Minh Binh Nguyen, Manabu Nakayama, Michael Rendl, Wendy A. Bickmore, Haruhiko Koseki, Deyou Zheng, Elena Ezhkova. (2018). "PRC1 Fine-tunes Gene Repression and Activation to Safeguard Skin Development and Stem Cell Specification." Cell Stem Cell 22(5): 726-739.e727. <a href="https://doi.org/10.1016/j.stem.2018.04.005">https://doi.org/10.1016/j.stem.2018.04.005</a></li>
+<li>Idan Cohen, Dejian Zhao, Gopinathan Menon, Manabu Nakayama, Haruhiko Koseki, Deyou Zheng and Elena Ezhkova. (2019). "PRC1 preserves epidermal tissue integrity independently of PRC2." Genes & Development 33(1-2): 55-60. <a href="https://doi.org/10.1101/gad.319939.118">https://doi.org/10.1101/gad.319939.118</a></li>
 </ul>
