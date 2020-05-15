@@ -11,7 +11,6 @@
 <li><a href="#stitch">Stitch short polyN regions into longer interrupted polyN regions</a></li>
 <li><a href="#frag">Estimate falsely primed fragment length</a></li>
 </ul>
-<li><a href="#Benchmarks">Benchmarks</a></li>
 <li><a href="#Reference">Reference</a></li>
 </ul>
 
@@ -108,8 +107,6 @@
 <p>One R script and one figure generated from the R script for fragment length distribution near poly(T/A) regions.</p>
 <p><b>Attention</b>:</p>
 <p>If the figure was not generated automiatically, users can generate it by running the R script. There are long lines in the R script. Avoid opening and running the script file in RStudio, or the long lines will be truncated and result in errors. Instead, run "source("script.R")" in R command console, or run "Rscript script.R" on command line console.</p>
-
-<h2><a name="Benchmarks">Benchmarks</a></h2>
 
 <h2><a name="Reference">Reference</a></h2>
 <ul>
